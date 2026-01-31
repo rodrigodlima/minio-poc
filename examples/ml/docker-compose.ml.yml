@@ -1,0 +1,114 @@
+version: '3.8'
+
+# Machine Learning Use Case: MLflow with MinIO as Artifact Store
+# This setup enables ML experiment tracking and model versioning
+
+services:
+  # MLflow Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    container_name: mlflow
+    environment:
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=myminio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - MLFLOW_BACKEND_STORE_URI=postgresql://mlflow:mlflow@mlflow-db:5432/mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=s3://mlflow-artifacts/
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mlflow-db
+      - minio-ml-setup
+    networks:
+      - minio-network
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri postgresql://mlflow:mlflow@mlflow-db:5432/mlflow
+      --default-artifact-root s3://mlflow-artifacts/
+
+  # PostgreSQL for MLflow metadata
+  mlflow-db:
+    image: postgres:15-alpine
+    container_name: mlflow-db
+    environment:
+      - POSTGRES_USER=mlflow
+      - POSTGRES_PASSWORD=mlflow
+      - POSTGRES_DB=mlflow
+    volumes:
+      - mlflow-db-data:/var/lib/postgresql/data
+    networks:
+      - minio-network
+
+  # MinIO bucket setup for ML
+  minio-ml-setup:
+    image: minio/mc:latest
+    container_name: minio-ml-setup
+    depends_on:
+      - minio
+    networks:
+      - minio-network
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      mc alias set myminio http://minio:9000 myminio minio123;
+      mc mb myminio/mlflow-artifacts --ignore-existing;
+      mc mb myminio/ml-datasets --ignore-existing;
+      mc mb myminio/ml-models --ignore-existing;
+      mc mb myminio/feature-store --ignore-existing;
+      echo 'ML buckets created successfully';
+      exit 0;
+      "
+
+  # Jupyter for ML experiments
+  jupyter-ml:
+    image: jupyter/scipy-notebook:python-3.11
+    container_name: jupyter-ml
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=myminio
+      - AWS_SECRET_ACCESS_KEY=minio123
+    ports:
+      - "8889:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./requirements.txt:/home/jovyan/requirements.txt
+    depends_on:
+      - mlflow
+    networks:
+      - minio-network
+    command: >
+      bash -c "
+        pip install -r /home/jovyan/requirements.txt &&
+        start-notebook.sh --NotebookApp.token='' --NotebookApp.password=''
+      "
+
+  # Label Studio for Data Labeling (optional)
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: label-studio
+    environment:
+      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/files
+      # MinIO storage
+      - LABEL_STUDIO_S3_ENDPOINT=http://minio:9000
+      - LABEL_STUDIO_S3_ACCESS_KEY=myminio
+      - LABEL_STUDIO_S3_SECRET_KEY=minio123
+      - LABEL_STUDIO_S3_BUCKET=ml-datasets
+    ports:
+      - "8084:8080"
+    volumes:
+      - label-studio-data:/label-studio/data
+    networks:
+      - minio-network
+
+volumes:
+  mlflow-db-data:
+  label-studio-data:
+
+networks:
+  minio-network:
+    external: true

@@ -1,0 +1,106 @@
+version: '3.8'
+
+# Analytics Use Case: Apache Spark with MinIO as Data Lake
+# This extends the base MinIO setup for big data analytics
+
+services:
+  # Spark Master
+  spark-master:
+    image: bitnami/spark:3.5
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8082:8080"  # Spark Web UI
+      - "7077:7077"  # Spark Master Port
+    networks:
+      - minio-network
+    volumes:
+      - ./spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf:ro
+      - ./jars:/opt/bitnami/spark/jars/custom:ro
+
+  # Spark Worker
+  spark-worker:
+    image: bitnami/spark:3.5
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark-master
+    networks:
+      - minio-network
+    volumes:
+      - ./spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf:ro
+      - ./jars:/opt/bitnami/spark/jars/custom:ro
+
+  # Jupyter Notebook for Interactive Analytics
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: jupyter-analytics
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - SPARK_MASTER=spark://spark-master:7077
+      # MinIO connection settings
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=myminio
+      - MINIO_SECRET_KEY=minio123
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
+    depends_on:
+      - spark-master
+    networks:
+      - minio-network
+    command: start-notebook.sh --NotebookApp.token='' --NotebookApp.password=''
+
+  # Trino (formerly Presto) for SQL Analytics
+  trino:
+    image: trinodb/trino:435
+    container_name: trino
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog:ro
+    networks:
+      - minio-network
+
+  # Apache Superset for Visualization
+  superset:
+    image: apache/superset:3.1.0
+    container_name: superset
+    environment:
+      - SUPERSET_SECRET_KEY=your_secret_key_here
+      - ADMIN_USERNAME=admin
+      - ADMIN_EMAIL=admin@superset.com
+      - ADMIN_PASSWORD=admin
+    ports:
+      - "8088:8088"
+    depends_on:
+      - trino
+    networks:
+      - minio-network
+    command: >
+      bash -c "
+        superset db upgrade &&
+        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password admin || true &&
+        superset init &&
+        superset run -h 0.0.0.0 -p 8088
+      "
+
+networks:
+  minio-network:
+    external: true
