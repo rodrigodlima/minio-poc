@@ -28,11 +28,15 @@ services:
       # Audit webhook configuration to send logs to Logstash
       MINIO_AUDIT_WEBHOOK_ENABLE_primary: "on"
       MINIO_AUDIT_WEBHOOK_ENDPOINT_primary: "http://logstash:5044"
+      # Event notification webhook for log content
+      MINIO_NOTIFY_WEBHOOK_ENABLE_logwebhook: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_logwebhook: "http://webhook:8081/webhook"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     depends_on:
       - logstash
+      - webhook
     networks:
       - minio-network
 
@@ -90,7 +94,6 @@ services:
       MINIO_USE_SSL: "false"
       OPENSEARCH_URL: http://opensearch:9200
     depends_on:
-      - minio
       - opensearch
     networks:
       - minio-network
@@ -100,45 +103,26 @@ services:
     container_name: minio-setup
     depends_on:
       - minio
-      - webhook
     entrypoint: >
       /bin/sh -c "
       echo 'Waiting for MinIO...';
+      sleep 15;
       until mc alias set myminio http://minio:9000 myminio minio123 2>/dev/null; do
         echo 'MinIO not ready, waiting...';
-        sleep 2;
+        sleep 3;
       done;
       echo 'MinIO is ready!';
-
-      echo 'Waiting for webhook service...';
-      until wget -q --spider http://webhook:8081/health 2>/dev/null; do
-        echo 'Webhook not ready, waiting...';
-        sleep 2;
-      done;
-      echo 'Webhook is ready!';
-
-      echo 'Configuring MinIO webhook notification...';
-      mc admin config set myminio notify_webhook:logwebhook endpoint=http://webhook:8081/webhook;
-
-      echo 'Restarting MinIO to apply configuration...';
-      mc admin service restart myminio;
-      sleep 10;
-
-      echo 'Re-establishing connection after restart...';
-      until mc alias set myminio http://minio:9000 myminio minio123 2>/dev/null; do
-        sleep 2;
-      done;
 
       echo 'Creating bucket if not exists...';
       mc mb myminio/app-logs --ignore-existing;
 
       echo 'Adding event notification...';
-      mc event add myminio/app-logs arn:minio:sqs::logwebhook:webhook --event put --suffix .json;
+      mc event add myminio/app-logs arn:minio:sqs::logwebhook:webhook --event put --suffix .json || true;
 
       echo 'Configured events:';
       mc event list myminio/app-logs;
 
-      echo 'MinIO event notification configured successfully!';
+      echo 'MinIO setup completed!';
       exit 0;
       "
     networks:

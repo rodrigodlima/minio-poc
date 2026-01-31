@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -169,6 +170,14 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 
 		bucket := record.S3.Bucket.Name
 		objectKey := record.S3.Object.Key
+
+		// URL decode the key (MinIO sends URL-encoded keys)
+		decodedKey, err := url.QueryUnescape(objectKey)
+		if err != nil {
+			log.Printf("Error decoding key: %v", err)
+			decodedKey = objectKey
+		}
+		objectKey = decodedKey
 
 		// Skip non-JSON files
 		if !strings.HasSuffix(objectKey, ".json") {
