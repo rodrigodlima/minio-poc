@@ -51,7 +51,7 @@ docker-compose ps
 
 - **MinIO Console**: http://localhost:9001
   - Username: `myminio`
-  - Password: `minio`
+  - Password: `minio123`
 - **OpenSearch Dashboards**: http://localhost:5601
 
 ## API Usage
@@ -117,7 +117,7 @@ curl http://localhost:9200/minio-audit-*/_count?pretty
 ```bash
 # Set up alias
 docker run --rm -it --network minio-poc_minio-network \
-  minio/mc alias set myminio http://minio:9000 myminio minio
+  minio/mc alias set myminio http://minio:9000 myminio minio123
 
 # Create a bucket
 docker run --rm -it --network minio-poc_minio-network \
@@ -138,11 +138,11 @@ docker run --rm -it --network minio-poc_minio-network \
 
 ```bash
 # Create bucket
-curl -X PUT http://localhost:9000/my-bucket -u myminio:minio
+curl -X PUT http://localhost:9000/my-bucket -u myminio:minio123
 
 # Upload file
 curl -X PUT http://localhost:9000/my-bucket/hello.txt \
-  -u myminio:minio \
+  -u myminio:minio123 \
   -d "Hello World"
 ```
 
@@ -200,7 +200,7 @@ Set in `docker-compose.yml`:
 ```yaml
 environment:
   MINIO_ROOT_USER: myminio
-  MINIO_ROOT_PASSWORD: minio
+  MINIO_ROOT_PASSWORD: minio123
 ```
 
 ### Audit Webhook
