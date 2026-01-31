@@ -76,6 +76,46 @@ services:
     networks:
       - minio-network
 
+  webhook:
+    build:
+      context: ./webhook
+      dockerfile: Dockerfile
+    container_name: log-webhook
+    ports:
+      - "8081:8081"
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: myminio
+      MINIO_SECRET_KEY: minio123
+      MINIO_USE_SSL: "false"
+      OPENSEARCH_URL: http://opensearch:9200
+    depends_on:
+      - minio
+      - opensearch
+    networks:
+      - minio-network
+
+  minio-setup:
+    image: minio/mc
+    container_name: minio-setup
+    depends_on:
+      - minio
+      - webhook
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      mc alias set myminio http://minio:9000 myminio minio123;
+      mc admin config set myminio notify_webhook:logwebhook endpoint=http://webhook:8081/webhook;
+      mc admin service restart myminio;
+      sleep 5;
+      mc event add myminio/app-logs arn:minio:sqs::logwebhook:webhook --event put --suffix .json;
+      mc event list myminio/app-logs;
+      echo 'MinIO event notification configured!';
+      exit 0;
+      "
+    networks:
+      - minio-network
+
 volumes:
   minio_data:
   opensearch_data:
