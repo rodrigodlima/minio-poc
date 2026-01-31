@@ -2,6 +2,34 @@
 
 A proof of concept demonstrating MinIO as a low-cost log storage with OpenSearch for searchable logs. Application logs are stored in MinIO and automatically indexed in OpenSearch via event notifications.
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [How It Works](#how-it-works)
+- [Services](#services)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [API Usage](#api-usage)
+  - [Health Check](#health-check)
+  - [Generate Sample Logs](#generate-sample-logs)
+  - [Create a Custom Log](#create-a-custom-log)
+  - [List All Logs](#list-all-logs-from-minio)
+- [Searching Logs in OpenSearch](#searching-logs-in-opensearch)
+  - [Via API](#via-api)
+  - [Via OpenSearch Dashboards](#via-opensearch-dashboards)
+  - [PPL Queries](#ppl-queries-in-opensearch-dashboards)
+- [Index Patterns](#index-patterns)
+- [Monitoring](#monitoring)
+- [Stopping Services](#stopping-services)
+- [Extended Use Cases](#extended-use-cases)
+  - [Analytics with Apache Spark](#analytics-with-apache-spark)
+  - [Machine Learning with MLflow](#machine-learning-with-mlflow)
+- [Project Structure](#project-structure)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Extended Architecture](#extended-architecture)
+  - [Data Flow Patterns](#data-flow-patterns)
+
 ## Architecture
 
 ```
