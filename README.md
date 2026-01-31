@@ -202,6 +202,43 @@ docker-compose down
 docker-compose down -v
 ```
 
+## Extended Use Cases
+
+This POC includes examples for **Analytics** and **Machine Learning** use cases with MinIO.
+
+### Analytics with Apache Spark
+
+Run big data analytics on logs stored in MinIO:
+
+```bash
+cd examples/analytics
+docker-compose -f docker-compose.analytics.yml up -d
+```
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Spark Master | 8082 | Spark Web UI |
+| Jupyter | 8888 | Interactive analytics notebooks |
+| Trino | 8083 | SQL queries on MinIO data |
+| Superset | 8088 | Business intelligence dashboards |
+
+### Machine Learning with MLflow
+
+Train and track ML models with MinIO as artifact storage:
+
+```bash
+cd examples/ml
+docker-compose -f docker-compose.ml.yml up -d
+```
+
+| Service | Port | Description |
+|---------|------|-------------|
+| MLflow | 5000 | Experiment tracking & model registry |
+| Jupyter | 8889 | ML training notebooks |
+| Label Studio | 8084 | Data labeling tool |
+
+See [examples/README.md](examples/README.md) for detailed documentation.
+
 ## Project Structure
 
 ```
@@ -217,6 +254,16 @@ docker-compose down -v
 ├── logstash/
 │   └── pipeline/
 │       └── minio-audit.conf  # Logstash pipeline for audit logs
+├── examples/
+│   ├── analytics/       # Spark + Trino analytics examples
+│   │   ├── docker-compose.analytics.yml
+│   │   ├── spark-defaults.conf
+│   │   ├── trino/
+│   │   └── notebooks/
+│   └── ml/              # MLflow + ML training examples
+│       ├── docker-compose.ml.yml
+│       ├── requirements.txt
+│       └── notebooks/
 ├── docker-compose.yml   # Service orchestration
 └── README.md
 ```
@@ -270,3 +317,43 @@ curl 'http://localhost:9200/_cluster/health?pretty'
 docker run --rm --network minio-poc_minio-network minio/mc \
   sh -c "mc alias set myminio http://minio:9000 myminio minio123 && mc event list myminio/app-logs"
 ```
+
+## Extended Architecture
+
+```
+                              ┌─────────────────────────────────────────────┐
+                              │                 MinIO                        │
+                              │    (S3-Compatible Object Storage)            │
+                              │                                              │
+                              │  ┌─────────┐ ┌─────────┐ ┌─────────────────┐│
+                              │  │app-logs │ │analytics│ │mlflow-artifacts ││
+                              │  │ bucket  │ │  data   │ │     bucket      ││
+                              │  └────┬────┘ └────┬────┘ └────────┬────────┘│
+                              └───────┼───────────┼───────────────┼─────────┘
+                                      │           │               │
+              ┌───────────────────────┼───────────┼───────────────┼──────────────────┐
+              │                       │           │               │                  │
+              ▼                       ▼           ▼               ▼                  │
+   ┌────────────────────┐  ┌──────────────────────────┐  ┌──────────────────┐       │
+   │   Log Indexing     │  │      Analytics           │  │  Machine Learning│       │
+   │                    │  │                          │  │                  │       │
+   │  Webhook→OpenSearch│  │  Spark / Trino / Superset│  │  MLflow / Jupyter│       │
+   │  (Search & Query)  │  │  (ETL & BI Dashboards)   │  │  (Training & Exp)│       │
+   └────────────────────┘  └──────────────────────────┘  └──────────────────┘       │
+              │                       │                           │                  │
+              └───────────────────────┴───────────────────────────┘                  │
+                                      │                                              │
+                              ┌───────▼───────┐                                      │
+                              │  OpenSearch   │◀─────────────────────────────────────┘
+                              │  Dashboards   │     (Query logs for ML features)
+                              └───────────────┘
+```
+
+### Data Flow Patterns
+
+| Pattern | Description | Use Case |
+|---------|-------------|----------|
+| **Log Indexing** | MinIO → Webhook → OpenSearch | Real-time log search |
+| **Batch Analytics** | MinIO → Spark → Parquet → Trino | Daily aggregations |
+| **ML Training** | MinIO → Jupyter → MLflow → MinIO | Model development |
+| **Feature Engineering** | OpenSearch → Spark → Feature Store | ML pipelines |
