@@ -103,14 +103,42 @@ services:
       - webhook
     entrypoint: >
       /bin/sh -c "
-      sleep 10;
-      mc alias set myminio http://minio:9000 myminio minio123;
+      echo 'Waiting for MinIO...';
+      until mc alias set myminio http://minio:9000 myminio minio123 2>/dev/null; do
+        echo 'MinIO not ready, waiting...';
+        sleep 2;
+      done;
+      echo 'MinIO is ready!';
+
+      echo 'Waiting for webhook service...';
+      until wget -q --spider http://webhook:8081/health 2>/dev/null; do
+        echo 'Webhook not ready, waiting...';
+        sleep 2;
+      done;
+      echo 'Webhook is ready!';
+
+      echo 'Configuring MinIO webhook notification...';
       mc admin config set myminio notify_webhook:logwebhook endpoint=http://webhook:8081/webhook;
+
+      echo 'Restarting MinIO to apply configuration...';
       mc admin service restart myminio;
-      sleep 5;
+      sleep 10;
+
+      echo 'Re-establishing connection after restart...';
+      until mc alias set myminio http://minio:9000 myminio minio123 2>/dev/null; do
+        sleep 2;
+      done;
+
+      echo 'Creating bucket if not exists...';
+      mc mb myminio/app-logs --ignore-existing;
+
+      echo 'Adding event notification...';
       mc event add myminio/app-logs arn:minio:sqs::logwebhook:webhook --event put --suffix .json;
+
+      echo 'Configured events:';
       mc event list myminio/app-logs;
-      echo 'MinIO event notification configured!';
+
+      echo 'MinIO event notification configured successfully!';
       exit 0;
       "
     networks:
