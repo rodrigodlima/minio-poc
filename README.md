@@ -1,22 +1,44 @@
 # MinIO POC with OpenSearch Logging
 
-A proof of concept demonstrating MinIO object storage with audit logging to OpenSearch, including a Go API application.
+A proof of concept demonstrating MinIO as a low-cost log storage with OpenSearch for searchable logs. Application logs are stored in MinIO and automatically indexed in OpenSearch via event notifications.
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Go API    │────▶│    MinIO    │────▶│  Logstash   │────▶│ OpenSearch  │
-│  :8080      │     │  :9000/9001 │     │   :5044     │     │   :9200     │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-                                                                   │
-                                                                   ▼
-                                                           ┌─────────────┐
-                                                           │ OpenSearch  │
-                                                           │ Dashboards  │
-                                                           │   :5601     │
-                                                           └─────────────┘
+                                    ┌─────────────────────────────────────────────────┐
+                                    │            Log Content Flow                      │
+                                    │                                                  │
+┌─────────────┐     ┌─────────────┐ │  ┌─────────────┐     ┌─────────────┐            │
+│   Go API    │────▶│    MinIO    │─┼─▶│   Webhook   │────▶│ OpenSearch  │            │
+│   :8080     │     │ :9000/:9001 │ │  │   :8081     │     │   :9200     │            │
+└─────────────┘     └─────────────┘ │  └─────────────┘     └─────────────┘            │
+                           │        │         │                    │                   │
+                           │        │   (reads content)            │                   │
+                           │        │                              ▼                   │
+                           │        │                      ┌─────────────┐            │
+                           │        │                      │ OpenSearch  │            │
+                           │        │                      │ Dashboards  │            │
+                           │        │                      │   :5601     │            │
+                           │        └──────────────────────┴─────────────┴────────────┘
+                           │
+                           │        ┌─────────────────────────────────────────────────┐
+                           │        │            Audit Log Flow (S3 operations)       │
+                           │        │                                                  │
+                           └───────▶│  ┌─────────────┐     ┌─────────────┐            │
+                                    │  │  Logstash   │────▶│ OpenSearch  │            │
+                                    │  │   :5044     │     │ (minio-audit│            │
+                                    │  └─────────────┘     │    index)   │            │
+                                    │                      └─────────────┘            │
+                                    └─────────────────────────────────────────────────┘
 ```
+
+## How It Works
+
+1. **Go API** receives log requests and stores them as JSON files in MinIO (`app-logs` bucket)
+2. **MinIO** stores the logs cheaply (object storage) and triggers an **Event Notification** when a new file is created
+3. **Webhook Service** receives the event, reads the file content from MinIO, and indexes it in OpenSearch
+4. **OpenSearch** makes the logs searchable with full-text search capabilities
+5. **Logstash** (optional) captures MinIO audit logs (S3 operations metadata)
 
 ## Services
 
@@ -24,9 +46,10 @@ A proof of concept demonstrating MinIO object storage with audit logging to Open
 |---------|------|-------------|
 | Go API | 8080 | REST API that stores logs in MinIO |
 | MinIO | 9000, 9001 | Object storage (API and Console) |
-| Logstash | 5044 | Receives MinIO audit webhooks |
+| Webhook | 8081 | Processes MinIO events and indexes logs |
 | OpenSearch | 9200, 9600 | Log storage and search engine |
 | OpenSearch Dashboards | 5601 | Log visualization UI |
+| Logstash | 5044 | Receives MinIO audit webhooks (S3 ops) |
 
 ## Prerequisites
 
@@ -41,13 +64,23 @@ A proof of concept demonstrating MinIO object storage with audit logging to Open
 docker-compose up -d --build
 ```
 
-### 2. Verify services are running
+### 2. Wait for setup to complete
+
+The `minio-setup` container configures event notifications automatically. Check its logs:
+
+```bash
+docker logs minio-setup
+```
+
+You should see: `MinIO event notification configured!`
+
+### 3. Verify services are running
 
 ```bash
 docker-compose ps
 ```
 
-### 3. Access the UIs
+### 4. Access the UIs
 
 - **MinIO Console**: http://localhost:9001
   - Username: `myminio`
@@ -78,73 +111,58 @@ curl -X POST http://localhost:8080/logs \
   -d '{"level": "INFO", "message": "User authentication successful"}'
 ```
 
-### List All Logs
+### List All Logs (from MinIO)
 
 ```bash
 curl http://localhost:8080/logs
 ```
 
-### Get a Specific Log
-
-```bash
-curl http://localhost:8080/logs/{id}
-```
-
-## Viewing Logs in OpenSearch
+## Searching Logs in OpenSearch
 
 ### Via API
 
 ```bash
-# Check if logs are being indexed
-curl http://localhost:9200/minio-audit-*/_search?pretty
+# Search application logs (content)
+curl -s 'http://localhost:9200/app-logs-*/_search?pretty' \
+  -H 'Content-Type: application/json' \
+  -d '{"query":{"match":{"message":"authentication"}}}'
 
-# Count audit logs
-curl http://localhost:9200/minio-audit-*/_count?pretty
+# Search by log level
+curl -s 'http://localhost:9200/app-logs-*/_search?pretty' \
+  -H 'Content-Type: application/json' \
+  -d '{"query":{"match":{"level":"ERROR"}}}'
+
+# Count logs
+curl -s 'http://localhost:9200/app-logs-*/_count'
 ```
 
 ### Via OpenSearch Dashboards
 
 1. Open http://localhost:5601
 2. Go to **Management** → **Stack Management** → **Index Patterns**
-3. Create index pattern: `minio-audit-*`
-4. Select `@timestamp` as the time field
-5. Go to **Discover** to explore the logs
+3. Create index pattern: `app-logs-*`
+4. Select `timestamp` as the time field
+5. Go to **Discover** to explore and search logs
 
-## Testing MinIO Directly
+### PPL Queries (in OpenSearch Dashboards)
 
-### Using MinIO Client (mc)
+```sql
+-- Search for specific message
+source = app-logs-* | where message = "User authentication successful"
 
-```bash
-# Set up alias
-docker run --rm -it --network minio-poc_minio-network \
-  minio/mc alias set myminio http://minio:9000 myminio minio123
+-- Filter by log level
+source = app-logs-* | where level = "ERROR"
 
-# Create a bucket
-docker run --rm -it --network minio-poc_minio-network \
-  minio/mc mb myminio/test-bucket
-
-# Upload a file
-echo "test" > /tmp/test.txt
-docker run --rm -it --network minio-poc_minio-network \
-  -v /tmp/test.txt:/tmp/test.txt \
-  minio/mc cp /tmp/test.txt myminio/test-bucket/
-
-# List objects
-docker run --rm -it --network minio-poc_minio-network \
-  minio/mc ls myminio/test-bucket
+-- Search with wildcard
+source = app-logs-* | where match(message, "authentication")
 ```
 
-### Using curl
+## Index Patterns
 
-```bash
-# Create bucket
-curl -X PUT http://localhost:9000/my-bucket -u myminio:minio123
-
-# Upload file
-curl -X PUT http://localhost:9000/my-bucket/hello.txt \
-  -u myminio:minio123 \
-  -d "Hello World"
-```
+| Index Pattern | Content | Description |
+|---------------|---------|-------------|
+| `app-logs-*` | Application logs | Log content (level, message, service) |
+| `minio-audit-*` | Audit logs | S3 operations (PutObject, GetObject, etc.) |
 
 ## Monitoring
 
@@ -154,16 +172,24 @@ curl -X PUT http://localhost:9000/my-bucket/hello.txt \
 # All services
 docker-compose logs -f
 
-# Specific service
+# Specific services
+docker-compose logs -f webhook
 docker-compose logs -f api
 docker-compose logs -f minio
-docker-compose logs -f logstash
 ```
 
-### Check Logstash processing
+### Check webhook processing
 
 ```bash
-docker logs logstash -f
+docker logs log-webhook -f
+```
+
+### Verify event notifications
+
+```bash
+docker run --rm --network minio-poc_minio-network minio/mc \
+  alias set myminio http://minio:9000 myminio minio123 && \
+  mc event list myminio/app-logs
 ```
 
 ## Stopping Services
@@ -184,9 +210,13 @@ docker-compose down -v
 │   ├── main.go          # Go API application
 │   ├── go.mod           # Go module dependencies
 │   └── Dockerfile       # API container build
+├── webhook/
+│   ├── main.go          # Webhook service (MinIO events → OpenSearch)
+│   ├── go.mod           # Go module dependencies
+│   └── Dockerfile       # Webhook container build
 ├── logstash/
 │   └── pipeline/
-│       └── minio-audit.conf  # Logstash pipeline config
+│       └── minio-audit.conf  # Logstash pipeline for audit logs
 ├── docker-compose.yml   # Service orchestration
 └── README.md
 ```
@@ -195,51 +225,48 @@ docker-compose down -v
 
 ### MinIO Credentials
 
-Set in `docker-compose.yml`:
-
 ```yaml
 environment:
   MINIO_ROOT_USER: myminio
   MINIO_ROOT_PASSWORD: minio123
 ```
 
-### Audit Webhook
+### Event Notification
 
-MinIO sends audit logs to Logstash via webhook:
+MinIO sends events to the webhook when new objects are created:
 
-```yaml
-environment:
-  MINIO_AUDIT_WEBHOOK_ENABLE_primary: "on"
-  MINIO_AUDIT_WEBHOOK_ENDPOINT_primary: "http://logstash:5044"
+```bash
+mc event add myminio/app-logs arn:minio:sqs::logwebhook:webhook --event put --suffix .json
 ```
 
 ## Troubleshooting
 
-### Logs not appearing in OpenSearch
+### Logs not appearing in OpenSearch (app-logs index)
 
-1. Check Logstash is receiving logs:
+1. Check webhook is receiving events:
    ```bash
-   docker logs logstash
+   docker logs log-webhook
    ```
 
-2. Verify OpenSearch is healthy:
+2. Verify event notification is configured:
    ```bash
-   curl http://localhost:9200/_cluster/health?pretty
+   docker logs minio-setup
    ```
 
-3. Check MinIO webhook configuration:
+3. Re-run setup if needed:
    ```bash
-   docker logs minio | grep -i webhook
+   docker-compose restart minio-setup
    ```
 
-### API cannot connect to MinIO
+### Verify OpenSearch health
 
-1. Ensure MinIO is running:
-   ```bash
-   docker-compose ps minio
-   ```
+```bash
+curl 'http://localhost:9200/_cluster/health?pretty'
+```
 
-2. Check API logs:
-   ```bash
-   docker logs go-api
-   ```
+### Check MinIO bucket events
+
+```bash
+docker run --rm --network minio-poc_minio-network minio/mc \
+  sh -c "mc alias set myminio http://minio:9000 myminio minio123 && mc event list myminio/app-logs"
+```
