@@ -1,6 +1,6 @@
-# MinIO POC - Demo Compacta (5 minutos)
+# MinIO POC - Compact Demo (5 minutes)
 
-## Preparação (ANTES da demo)
+## Preparation (BEFORE the demo)
 
 ```bash
 # Terminal 1: Erasure Coding
@@ -20,7 +20,7 @@ sleep 30
 curl -X POST http://localhost:8080/generate
 ```
 
-**Abas do browser:**
+**Browser tabs:**
 - MinIO Erasure: http://localhost:9011 (myminio / minio123)
 - MinIO OpenSearch: http://localhost:9001 (myminio / minio123)
 - OpenSearch Dashboards: http://localhost:5601
@@ -29,14 +29,14 @@ curl -X POST http://localhost:8080/generate
 
 ## PART 1: Erasure Coding (2 min)
 
-> "Erasure Coding protege dados sem RAID. Divide em pedaços e distribui nos discos."
+> "Erasure Coding protects data without RAID. It splits data into pieces and distributes across disks."
 
-**Mostrar arquivo funcionando:**
+**Show file working:**
 ```bash
 mc cat erasure-demo/test-bucket/report.txt
 ```
 
-**Simular falha de disco:**
+**Simulate disk failure:**
 ```bash
 docker compose -f docker-compose.erasure.yml stop
 rm -rf ./data/disk1/*
@@ -45,22 +45,22 @@ docker compose -f docker-compose.erasure.yml start
 sleep 3
 ```
 
-> "Deletei 2 discos. Metade do storage."
+> "I deleted 2 disks. Half of the storage."
 
-**Verificar - ainda funciona:**
+**Verify - still works:**
 ```bash
 mc cat erasure-demo/test-bucket/report.txt
 ```
 
-> "Dados intactos! MinIO reconstrói usando paridade dos outros discos."
+> "Data is intact! MinIO reconstructs it using parity from the other disks."
 
 ---
 
 ## PART 2: WORM - Object Locking (1 min)
 
-> "WORM para compliance. Dados não podem ser deletados."
+> "WORM is for compliance. Data cannot be deleted or modified."
 
-**Criar bucket protegido e upload:**
+**Create protected bucket and upload:**
 ```bash
 mc mb erasure-demo/compliance-bucket --with-lock
 mc retention set --default COMPLIANCE "1d" erasure-demo/compliance-bucket
@@ -68,34 +68,34 @@ echo "AUDIT: $(date)" > /tmp/audit.txt
 mc cp /tmp/audit.txt erasure-demo/compliance-bucket/
 ```
 
-**Tentar deletar - BLOQUEADO:**
+**Try to delete - BLOCKED:**
 ```bash
 VERSION_ID=$(mc ls --versions --json erasure-demo/compliance-bucket/audit.txt | grep -o '"versionId":"[^"]*"' | head -1 | cut -d'"' -f4)
 mc rm --version-id "$VERSION_ID" erasure-demo/compliance-bucket/audit.txt
 ```
 
-> "WORM protected! Nem admin consegue deletar até o período expirar."
+> "WORM protected! Not even admin can delete until retention expires."
 
 ---
 
 ## PART 3: OpenSearch - Log Indexing (2 min)
 
-> "Logs armazenados no MinIO, indexados automaticamente no OpenSearch."
+> "Logs stored in MinIO, automatically indexed in OpenSearch."
 
-**Mostrar arquitetura:** (abrir DEMO_PRESENTATION.md ou slide)
+**Show architecture:** (open DEMO_PRESENTATION.md or slide)
 
 ```
 Go API → MinIO → Webhook → OpenSearch
 ```
 
-**Abrir OpenSearch Dashboards:** http://localhost:5601 → Observability → Logs
+**Open OpenSearch Dashboards:** http://localhost:5601 → Observability → Logs
 
-**Query PPL:**
+**PPL Query:**
 ```sql
 source = app-logs-* | where level = "ERROR"
 ```
 
-> "Busca instantânea. Logs baratos no MinIO, pesquisa rápida no OpenSearch."
+> "Instant search. Cheap storage in MinIO, fast queries in OpenSearch."
 
 ---
 
