@@ -342,49 +342,39 @@ curl -X POST http://localhost:8080/logs \
 
 > "In MinIO Console, we can see the logs stored in the app-logs bucket. Each log is a JSON file. But searching here is difficult..."
 
-#### 4.6 Search Logs in OpenSearch (1 min)
+#### 4.6 Search Logs in OpenSearch Dashboards (1 min)
 
-**Command:**
-```bash
-# Count total logs
-curl -s 'http://localhost:9200/app-logs-*/_count' | jq
+**Action:** Open http://localhost:5601 → **Observability** → **Logs**
+
+**What to say:**
+
+> "OpenSearch has indexed all our logs. Let's search using PPL - Piped Processing Language."
+
+**PPL Queries to copy:**
+
+```sql
+-- All ERROR logs
+source = app-logs-* | where level = "ERROR"
+```
+
+```sql
+-- Search for database errors
+source = app-logs-* | where match(message, "database")
+```
+
+```sql
+-- Count logs by level
+source = app-logs-* | stats count() by level
+```
+
+```sql
+-- Recent logs sorted by time
+source = app-logs-* | sort - timestamp | head 20
 ```
 
 **What to say:**
 
-> "OpenSearch has indexed all our logs. Let's search."
-
-**Command:**
-```bash
-# Search for ERROR logs
-curl -s 'http://localhost:9200/app-logs-*/_search?pretty' \
-  -H 'Content-Type: application/json' \
-  -d '{"query":{"match":{"level":"ERROR"}}}'
-```
-
-**What to say:**
-
-> "We can search by log level. All ERROR logs appear instantly."
-
-**Command:**
-```bash
-# Search for specific message
-curl -s 'http://localhost:9200/app-logs-*/_search?pretty' \
-  -H 'Content-Type: application/json' \
-  -d '{"query":{"match":{"message":"database"}}}'
-```
-
-**What to say:**
-
-> "We can also search by message content. Full-text search across all logs."
-
-#### 4.7 Show OpenSearch Dashboards (Optional - 30 sec)
-
-**Action:** Open http://localhost:5601
-
-**What to say:**
-
-> "OpenSearch Dashboards provides a visual interface. You can create dashboards, alerts, and visualizations. The index pattern is app-logs-*"
+> "PPL is like SQL for logs. We can filter by level, search message content, and aggregate data. All indexed automatically from MinIO."
 
 ---
 
