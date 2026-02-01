@@ -1,0 +1,29 @@
+# MinIO Erasure Coding Demo
+# Uses 4 volumes to demonstrate data protection
+# Can tolerate up to 2 disk failures (EC:2)
+
+services:
+  minio-erasure:
+    image: minio/minio:latest
+    container_name: minio-erasure
+    command: server /data{1...4} --console-address ":9001"
+    ports:
+      - "9010:9000"   # API (different port to avoid conflict)
+      - "9011:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: myminio
+      MINIO_ROOT_PASSWORD: minio123
+    volumes:
+      - ./data/disk1:/data1
+      - ./data/disk2:/data2
+      - ./data/disk3:/data3
+      - ./data/disk4:/data4
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  default:
+    name: erasure-demo-network
