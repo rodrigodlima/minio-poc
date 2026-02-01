@@ -88,6 +88,25 @@ mc rm --version-id "$VERSION_ID" erasure-demo/compliance-bucket/audit.txt
 Go API → MinIO → Webhook → OpenSearch
 ```
 
+**Generate logs in real-time (run during demo):**
+```bash
+# Generate 5 random logs
+curl -X POST http://localhost:8080/generate
+
+# Generate a specific ERROR log
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -d '{"level":"ERROR","message":"Payment processing failed"}'
+
+# Generate a specific INFO log
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -d '{"level":"INFO","message":"User login successful"}'
+
+# Generate multiple logs at once
+for i in {1..3}; do curl -s -X POST http://localhost:8080/generate; done
+```
+
 **Open OpenSearch Dashboards:** http://localhost:5601 → Observability → Logs
 
 **PPL Query:**
