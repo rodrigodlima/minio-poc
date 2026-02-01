@@ -19,7 +19,7 @@ docker-compose up -d --build
 sleep 30
 
 # Install ML dependencies (for demo)
-pip install minio pandas numpy scikit-learn
+pip install boto3 pandas numpy scikit-learn
 ```
 
 **Browser tabs:**
@@ -130,10 +130,10 @@ cat examples/ml/demo_ml_simple.py
 ```
 
 **Key points to highlight in the code:**
-- Line 1-30: Connect to MinIO (S3-compatible)
-- Line 40-50: Upload training data to MinIO bucket
-- Line 60-70: Load data from MinIO, train model
-- Line 80-95: Save model artifact to MinIO
+- Line 1-30: Connect to MinIO using boto3 (AWS S3 SDK) - proves S3 compatibility!
+- Line 40-50: Upload training data using s3.put_object()
+- Line 60-70: Load data using s3.get_object(), train model
+- Line 80-95: Save model artifact using S3 API
 - Line 100+: Load model from MinIO, make predictions
 
 **Run the ML demo:**
@@ -144,7 +144,7 @@ python demo_ml_simple.py
 
 **Expected output:**
 ```
-[1] Connected to MinIO at ec2-34-228-15-199.compute-1.amazonaws.com:9000
+[1] Connected to MinIO at http://localhost:9000 (using boto3/S3 SDK)
 [2] Uploaded: s3://ml-datasets/logs/training_data.csv
 [3] Model trained! Accuracy: 92%
 [4] Saved: s3://ml-models/log-classifier/v_20250201/model.pkl
@@ -155,7 +155,7 @@ python demo_ml_simple.py
 - `ml-datasets/` - training data
 - `ml-models/` - trained model artifacts (versioned by timestamp)
 
-> "Complete ML pipeline: data lake in MinIO, models versioned. S3-compatible = works with any ML framework."
+> "Complete ML pipeline using standard AWS boto3 SDK! Data lake in MinIO, models versioned. 100% S3-compatible."
 
 ---
 

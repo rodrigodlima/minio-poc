@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-MinIO ML Demo - Simple Version
-Demonstrates ML pipeline using MinIO as data lake (no MLflow required)
-Run: pip install minio pandas numpy scikit-learn && python demo_ml_simple.py
+MinIO ML Demo - Simple Version (using boto3/AWS SDK)
+Demonstrates ML pipeline using MinIO as data lake with S3-compatible API
+Run: pip install boto3 pandas numpy scikit-learn && python demo_ml_simple.py
 """
 
-from minio import Minio
+import boto3
+from botocore.client import Config
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -16,26 +17,36 @@ import pickle
 from datetime import datetime
 
 # =============================================================================
-# 1. CONNECT TO MINIO
+# 1. CONNECT TO MINIO (using AWS S3 SDK - boto3)
 # =============================================================================
 print("=" * 60)
-print("MinIO ML Pipeline Demo (Simple)")
+print("MinIO ML Pipeline Demo (using boto3/AWS S3 SDK)")
 print("=" * 60)
 
-client = Minio(
-    "localhost:9000",
-    access_key="myminio",
-    secret_key="minio123",
-    secure=False
+# MinIO endpoint - S3 compatible!
+MINIO_ENDPOINT = "http://localhost:9000"
+ACCESS_KEY = "myminio"
+SECRET_KEY = "minio123"
+
+# Create S3 client pointing to MinIO
+s3 = boto3.client(
+    's3',
+    endpoint_url=MINIO_ENDPOINT,
+    aws_access_key_id=ACCESS_KEY,
+    aws_secret_access_key=SECRET_KEY,
+    config=Config(signature_version='s3v4'),
+    region_name='us-east-1'
 )
 
-# Create ML bucket if needed
+# Create ML buckets if needed
 for bucket in ["ml-datasets", "ml-models"]:
-    if not client.bucket_exists(bucket):
-        client.make_bucket(bucket)
+    try:
+        s3.head_bucket(Bucket=bucket)
+    except:
+        s3.create_bucket(Bucket=bucket)
         print(f"[+] Created bucket: {bucket}")
 
-print("\n[1] Connected to MinIO at localhost:9000")
+print(f"\n[1] Connected to MinIO at {MINIO_ENDPOINT} (using boto3/S3 SDK)")
 
 # =============================================================================
 # 2. CREATE AND UPLOAD TRAINING DATA
@@ -60,14 +71,13 @@ data['is_critical'] = (
     (data['contains_error'] == 1) & (data['response_time_ms'] > 200)
 ).astype(int)
 
-# Upload to MinIO
+# Upload to MinIO using S3 API
 csv_bytes = data.to_csv(index=False).encode()
-client.put_object(
-    "ml-datasets",
-    "logs/training_data.csv",
-    BytesIO(csv_bytes),
-    len(csv_bytes),
-    content_type="text/csv"
+s3.put_object(
+    Bucket="ml-datasets",
+    Key="logs/training_data.csv",
+    Body=csv_bytes,
+    ContentType="text/csv"
 )
 
 print(f"    Uploaded: s3://ml-datasets/logs/training_data.csv")
@@ -79,10 +89,9 @@ print(f"    Samples: {len(data)} | Critical: {data['is_critical'].sum()}")
 print("\n" + "-" * 60)
 print("[3] Loading data from MinIO and training model...")
 
-# Load from MinIO
-response = client.get_object("ml-datasets", "logs/training_data.csv")
-df = pd.read_csv(BytesIO(response.read()))
-response.close()
+# Load from MinIO using S3 API
+response = s3.get_object(Bucket="ml-datasets", Key="logs/training_data.csv")
+df = pd.read_csv(BytesIO(response['Body'].read()))
 
 # Prepare features
 X = df.drop('is_critical', axis=1)
@@ -108,13 +117,12 @@ model_bytes = pickle.dumps(model)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 model_path = f"log-classifier/v_{timestamp}/model.pkl"
 
-# Save model
-client.put_object(
-    "ml-models",
-    model_path,
-    BytesIO(model_bytes),
-    len(model_bytes),
-    content_type="application/octet-stream"
+# Save model using S3 API
+s3.put_object(
+    Bucket="ml-models",
+    Key=model_path,
+    Body=model_bytes,
+    ContentType="application/octet-stream"
 )
 
 # Save metadata
@@ -126,12 +134,11 @@ metadata = {
     "created_at": timestamp
 }
 meta_bytes = str(metadata).encode()
-client.put_object(
-    "ml-models",
-    f"log-classifier/v_{timestamp}/metadata.json",
-    BytesIO(meta_bytes),
-    len(meta_bytes),
-    content_type="application/json"
+s3.put_object(
+    Bucket="ml-models",
+    Key=f"log-classifier/v_{timestamp}/metadata.json",
+    Body=meta_bytes,
+    ContentType="application/json"
 )
 
 print(f"    Saved: s3://ml-models/{model_path}")
@@ -142,10 +149,9 @@ print(f"    Saved: s3://ml-models/{model_path}")
 print("\n" + "-" * 60)
 print("[5] Loading model from MinIO and predicting...")
 
-# Load model from MinIO
-response = client.get_object("ml-models", model_path)
-loaded_model = pickle.loads(response.read())
-response.close()
+# Load model from MinIO using S3 API
+response = s3.get_object(Bucket="ml-models", Key=model_path)
+loaded_model = pickle.loads(response['Body'].read())
 
 # Predict on new logs
 new_logs = pd.DataFrame({
@@ -172,12 +178,14 @@ print("\n" + "-" * 60)
 print("[6] ML artifacts in MinIO:")
 
 print("\n    ml-datasets/")
-for obj in client.list_objects("ml-datasets", recursive=True):
-    print(f"      - {obj.object_name}")
+response = s3.list_objects_v2(Bucket="ml-datasets")
+for obj in response.get('Contents', []):
+    print(f"      - {obj['Key']}")
 
 print("\n    ml-models/")
-for obj in client.list_objects("ml-models", recursive=True):
-    print(f"      - {obj.object_name}")
+response = s3.list_objects_v2(Bucket="ml-models")
+for obj in response.get('Contents', []):
+    print(f"      - {obj['Key']}")
 
 # =============================================================================
 # SUMMARY
@@ -195,7 +203,7 @@ Pipeline executed:
 Benefits of MinIO for ML:
   - Centralized data lake for all datasets
   - Version-controlled model artifacts
-  - S3-compatible = works with any ML framework
+  - 100% S3-compatible = uses standard boto3/AWS SDK!
   - Scales to petabytes of data
 
 View in MinIO Console: http://localhost:9001
