@@ -1,0 +1,6 @@
+# Erasure Coding demo data (generated at runtime)
+examples/erasure-coding/data/
+
+# Temporary files
+*.tmp
+/tmp/
