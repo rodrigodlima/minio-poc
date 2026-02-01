@@ -4,17 +4,17 @@
 
 ```bash
 # Terminal 1: Erasure Coding
-cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/erasure-coding
+cd /home/ubuntu/minio-poc/examples/erasure-coding
 rm -rf ./data && mkdir -p ./data/disk{1,2,3,4}
 docker compose -f docker-compose.erasure.yml up -d
 sleep 5
-mc alias set erasure-demo http://localhost:9010 myminio minio123
+mc alias set erasure-demo http://ec2-34-228-15-199.compute-1.amazonaws.com:9010 myminio minio123
 mc mb erasure-demo/test-bucket
 echo "CONFIDENTIAL: Financial Report Q1 2025" > /tmp/report.txt
 mc cp /tmp/report.txt erasure-demo/test-bucket/
 
 # Terminal 2: OpenSearch
-cd /Users/rodrigo/git/github/rodrigodlima/minio-poc
+cd /home/ubuntu/minio-poc
 docker-compose up -d --build
 sleep 30
 
@@ -23,9 +23,9 @@ pip install minio pandas numpy scikit-learn
 ```
 
 **Browser tabs:**
-- MinIO Erasure: http://localhost:9011 (myminio / minio123)
-- MinIO OpenSearch: http://localhost:9001 (myminio / minio123)
-- OpenSearch Dashboards: http://localhost:5601
+- MinIO Erasure: http://ec2-34-228-15-199.compute-1.amazonaws.com:9011 (myminio / minio123)
+- MinIO OpenSearch: http://ec2-34-228-15-199.compute-1.amazonaws.com:9001 (myminio / minio123)
+- OpenSearch Dashboards: http://ec2-34-228-15-199.compute-1.amazonaws.com:5601
 
 ---
 
@@ -93,23 +93,23 @@ Go API → MinIO → Webhook → OpenSearch
 **Generate logs in real-time (run during demo):**
 ```bash
 # Generate 5 random logs
-curl -X POST http://localhost:8080/generate
+curl -X POST http://ec2-34-228-15-199.compute-1.amazonaws.com:8080/generate
 
 # Generate a specific ERROR log
-curl -X POST http://localhost:8080/logs \
+curl -X POST http://ec2-34-228-15-199.compute-1.amazonaws.com:8080/logs \
   -H "Content-Type: application/json" \
   -d '{"level":"ERROR","message":"Payment processing failed"}'
 
 # Generate a specific INFO log
-curl -X POST http://localhost:8080/logs \
+curl -X POST http://ec2-34-228-15-199.compute-1.amazonaws.com:8080/logs \
   -H "Content-Type: application/json" \
   -d '{"level":"INFO","message":"User login successful"}'
 
 # Generate multiple logs at once
-for i in {1..3}; do curl -s -X POST http://localhost:8080/generate; done
+for i in {1..3}; do curl -s -X POST http://ec2-34-228-15-199.compute-1.amazonaws.com:8080/generate; done
 ```
 
-**Open OpenSearch Dashboards:** http://localhost:5601 → Observability → Logs
+**Open OpenSearch Dashboards:** http://ec2-34-228-15-199.compute-1.amazonaws.com:5601 → Observability → Logs
 
 **PPL Query:**
 ```sql
@@ -138,20 +138,20 @@ cat examples/ml/demo_ml_simple.py
 
 **Run the ML demo:**
 ```bash
-cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/ml
+cd /home/ubuntu/minio-poc/examples/ml
 python demo_ml_simple.py
 ```
 
 **Expected output:**
 ```
-[1] Connected to MinIO at localhost:9000
+[1] Connected to MinIO at ec2-34-228-15-199.compute-1.amazonaws.com:9000
 [2] Uploaded: s3://ml-datasets/logs/training_data.csv
 [3] Model trained! Accuracy: 92%
 [4] Saved: s3://ml-models/log-classifier/v_20250201/model.pkl
 [5] Predictions: CRITICAL / NORMAL / NORMAL
 ```
 
-**Show MinIO Console:** http://localhost:9001
+**Show MinIO Console:** http://ec2-34-228-15-199.compute-1.amazonaws.com:9001
 - `ml-datasets/` - training data
 - `ml-models/` - trained model artifacts (versioned by timestamp)
 
@@ -163,11 +163,11 @@ python demo_ml_simple.py
 
 ```bash
 # Stop Erasure Coding
-cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/erasure-coding
+cd /home/ubuntu/minio-poc/examples/erasure-coding
 docker compose -f docker-compose.erasure.yml down
 rm -rf ./data
 
 # Stop OpenSearch
-cd /Users/rodrigo/git/github/rodrigodlima/minio-poc
+cd /home/ubuntu/minio-poc
 docker-compose down -v
 ```
