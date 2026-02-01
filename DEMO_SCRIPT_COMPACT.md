@@ -1,4 +1,4 @@
-# MinIO POC - Compact Demo (5 minutes)
+# MinIO POC - Compact Demo (7 minutes)
 
 ## Preparation (BEFORE the demo)
 
@@ -17,7 +17,9 @@ mc cp /tmp/report.txt erasure-demo/test-bucket/
 cd /Users/rodrigo/git/github/rodrigodlima/minio-poc
 docker-compose up -d --build
 sleep 30
-curl -X POST http://localhost:8080/generate
+
+# Install ML dependencies (for demo)
+pip install minio pandas numpy scikit-learn
 ```
 
 **Browser tabs:**
@@ -118,13 +120,54 @@ source = app-logs-* | where level = "ERROR"
 
 ---
 
+## PART 4: Machine Learning Pipeline (2 min)
+
+> "MinIO as data lake for ML. Store datasets, train models, version artifacts."
+
+**Show the code** (open in editor or cat):
+```bash
+cat examples/ml/demo_ml_simple.py
+```
+
+**Key points to highlight in the code:**
+- Line 1-30: Connect to MinIO (S3-compatible)
+- Line 40-50: Upload training data to MinIO bucket
+- Line 60-70: Load data from MinIO, train model
+- Line 80-95: Save model artifact to MinIO
+- Line 100+: Load model from MinIO, make predictions
+
+**Run the ML demo:**
+```bash
+cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/ml
+python demo_ml_simple.py
+```
+
+**Expected output:**
+```
+[1] Connected to MinIO at localhost:9000
+[2] Uploaded: s3://ml-datasets/logs/training_data.csv
+[3] Model trained! Accuracy: 92%
+[4] Saved: s3://ml-models/log-classifier/v_20250201/model.pkl
+[5] Predictions: CRITICAL / NORMAL / NORMAL
+```
+
+**Show MinIO Console:** http://localhost:9001
+- `ml-datasets/` - training data
+- `ml-models/` - trained model artifacts (versioned by timestamp)
+
+> "Complete ML pipeline: data lake in MinIO, models versioned. S3-compatible = works with any ML framework."
+
+---
+
 ## Cleanup
 
 ```bash
+# Stop Erasure Coding
 cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/erasure-coding
 docker compose -f docker-compose.erasure.yml down
 rm -rf ./data
 
+# Stop OpenSearch
 cd /Users/rodrigo/git/github/rodrigodlima/minio-poc
 docker-compose down -v
 ```
