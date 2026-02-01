@@ -1,4 +1,4 @@
-# MinIO POC - Demo Script (10 minutes)
+# MinIO POC - Demo Script (13 minutes)
 
 ## Focus: Advanced Features
 
@@ -9,6 +9,8 @@
 ---
 
 ## Preparation (do this BEFORE the demo)
+
+### Erasure Coding Setup (Parts 1-3)
 
 ```bash
 cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/erasure-coding
@@ -31,6 +33,25 @@ mc cp /tmp/report.txt erasure-demo/test-bucket/
 ```
 
 **Browser tab:** http://localhost:9011 (myminio / minio123)
+
+### OpenSearch Setup (Part 4)
+
+```bash
+cd /Users/rodrigo/git/github/rodrigodlima/minio-poc
+
+# Start OpenSearch stack (takes ~30 seconds to initialize)
+docker-compose up -d --build
+
+# Wait for all services
+sleep 30
+
+# Verify services are running
+docker-compose ps
+```
+
+**Browser tabs:**
+- MinIO Console: http://localhost:9001 (myminio / minio123)
+- OpenSearch Dashboards: http://localhost:5601
 
 ---
 
@@ -257,7 +278,117 @@ mc cat erasure-demo/compliance-bucket/audit.txt
 
 ---
 
-### PART 4: Wrap Up (2 min)
+### PART 4: OpenSearch - Log Indexing and Search (3 min)
+
+**What to say:**
+
+> "The third feature is log indexing with OpenSearch. MinIO can trigger events when objects are created. We use this to automatically index logs."
+
+> **Note:** Ensure OpenSearch stack is running (see Preparation section above)
+
+#### 4.1 Explain the Architecture (30 sec)
+
+**What to say:**
+
+> "Here's how it works: Go API writes logs to MinIO. MinIO triggers an event. Webhook reads the log and indexes in OpenSearch. All automatic."
+
+```
+┌─────────┐     ┌─────────┐     ┌─────────┐     ┌────────────┐
+│  Go API │────▶│  MinIO  │────▶│ Webhook │────▶│ OpenSearch │
+│  :8080  │     │  :9000  │     │  :8081  │     │   :9200    │
+└─────────┘     └─────────┘     └─────────┘     └────────────┘
+```
+
+#### 4.2 Check API Health (15 sec)
+
+**Command:**
+```bash
+curl http://localhost:8080/health
+```
+
+**What to say:**
+
+> "The Go API is running. Let's generate some logs."
+
+#### 4.3 Generate Application Logs (30 sec)
+
+**Command:**
+```bash
+curl -X POST http://localhost:8080/generate
+```
+
+**What to say:**
+
+> "This generates 10 sample logs with different levels: INFO, WARN, ERROR, DEBUG. Each log is stored as a JSON file in MinIO."
+
+#### 4.4 Create a Custom Log (30 sec)
+
+**Command:**
+```bash
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -d '{"level": "ERROR", "message": "Database connection failed"}'
+```
+
+**What to say:**
+
+> "We can also create specific logs. This simulates an application error."
+
+#### 4.5 View Logs in MinIO (30 sec)
+
+**Action:** Open MinIO Console http://localhost:9001
+
+**What to say:**
+
+> "In MinIO Console, we can see the logs stored in the app-logs bucket. Each log is a JSON file. But searching here is difficult..."
+
+#### 4.6 Search Logs in OpenSearch (1 min)
+
+**Command:**
+```bash
+# Count total logs
+curl -s 'http://localhost:9200/app-logs-*/_count' | jq
+```
+
+**What to say:**
+
+> "OpenSearch has indexed all our logs. Let's search."
+
+**Command:**
+```bash
+# Search for ERROR logs
+curl -s 'http://localhost:9200/app-logs-*/_search?pretty' \
+  -H 'Content-Type: application/json' \
+  -d '{"query":{"match":{"level":"ERROR"}}}'
+```
+
+**What to say:**
+
+> "We can search by log level. All ERROR logs appear instantly."
+
+**Command:**
+```bash
+# Search for specific message
+curl -s 'http://localhost:9200/app-logs-*/_search?pretty' \
+  -H 'Content-Type: application/json' \
+  -d '{"query":{"match":{"message":"database"}}}'
+```
+
+**What to say:**
+
+> "We can also search by message content. Full-text search across all logs."
+
+#### 4.7 Show OpenSearch Dashboards (Optional - 30 sec)
+
+**Action:** Open http://localhost:5601
+
+**What to say:**
+
+> "OpenSearch Dashboards provides a visual interface. You can create dashboards, alerts, and visualizations. The index pattern is app-logs-*"
+
+---
+
+### PART 5: Wrap Up (2 min)
 
 **What to say:**
 
@@ -267,6 +398,8 @@ mc cat erasure-demo/compliance-bucket/audit.txt
 
 > "**WORM / Object Locking**: Data cannot be deleted or modified. Required for compliance. Protects against ransomware."
 
+> "**OpenSearch Integration**: Automatic log indexing via event notifications. Store logs cheaply in MinIO, search instantly in OpenSearch."
+
 > "MinIO has more features:"
 
 | Feature | What it does |
@@ -275,20 +408,21 @@ mc cat erasure-demo/compliance-bucket/audit.txt
 | **Replication** | Copy data between datacenters |
 | **Encryption** | Automatic encryption at rest |
 | **Lifecycle Rules** | Auto-delete old data |
+| **Event Notifications** | Trigger webhooks, Lambda, Kafka on object events |
 
 **Architecture diagram:**
 
 ```
-         ┌──────────────────────────────┐
-         │            MinIO             │
-         │   • Erasure Coding           │
-         │   • WORM / Object Locking    │
-         │   • Encryption               │
-         │   • Replication              │
-         └──────────────────────────────┘
-              ▲         ▲         ▲
-              │         │         │
-           Spark     MLflow    Apps
+         ┌──────────────────────────────────┐
+         │              MinIO               │
+         │   • Erasure Coding               │
+         │   • WORM / Object Locking        │
+         │   • Event Notifications          │
+         │   • Encryption / Replication     │
+         └──────────────────────────────────┘
+              ▲         ▲         ▲         ▲
+              │         │         │         │
+           Spark     MLflow    Apps    OpenSearch
 ```
 
 **What to say:**
@@ -306,17 +440,24 @@ mc cat erasure-demo/compliance-bucket/audit.txt
 | 1 | MinIO Console quick tour | 1 min |
 | 2 | Erasure Coding demo | 5 min |
 | 3 | WORM / Object Locking demo | 2 min |
-| 4 | Wrap up | 2 min |
-| **Total** | | **10 min** |
+| 4 | OpenSearch log indexing demo | 3 min |
+| 5 | Wrap up | 2 min |
+| **Total** | | **13 min** |
 
 ---
 
 ## Cleanup After Demo
 
 ```bash
+# Stop Erasure Coding demo
+cd /Users/rodrigo/git/github/rodrigodlima/minio-poc/examples/erasure-coding
 docker compose -f docker-compose.erasure.yml down
 rm -rf ./data
 mc alias rm erasure-demo
+
+# Stop OpenSearch stack
+cd /Users/rodrigo/git/github/rodrigodlima/minio-poc
+docker-compose down -v
 ```
 
 ---
@@ -328,3 +469,4 @@ mc alias rm erasure-demo
 - **Key messages:**
   - Erasure Coding: "Lost 2 disks, data still works"
   - WORM: "Even admin cannot delete"
+  - OpenSearch: "Store cheap in MinIO, search fast in OpenSearch"
