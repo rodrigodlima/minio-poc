@@ -1,21 +1,4 @@
 services:
-  api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    container_name: go-api
-    ports:
-      - "8080:8080"
-    environment:
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: myminio
-      MINIO_SECRET_KEY: minio123
-      MINIO_USE_SSL: "false"
-    depends_on:
-      - minio
-    networks:
-      - minio-network
-
   minio:
     image: minio/minio
     container_name: minio
@@ -25,113 +8,9 @@ services:
     environment:
       MINIO_ROOT_USER: myminio
       MINIO_ROOT_PASSWORD: minio123
-      # Audit webhook configuration to send logs to Logstash
-      MINIO_AUDIT_WEBHOOK_ENABLE_primary: "on"
-      MINIO_AUDIT_WEBHOOK_ENDPOINT_primary: "http://logstash:5044"
-      # Event notification webhook for log content
-      MINIO_NOTIFY_WEBHOOK_ENABLE_logwebhook: "on"
-      MINIO_NOTIFY_WEBHOOK_ENDPOINT_logwebhook: "http://webhook:8081/webhook"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
-    depends_on:
-      - logstash
-      - webhook
-    networks:
-      - minio-network
-
-  opensearch:
-    image: opensearchproject/opensearch:2
-    container_name: opensearch
-    environment:
-      - discovery.type=single-node
-      - plugins.security.disabled=true
-      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=OpenSearch@123
-    ports:
-      - "9200:9200"
-      - "9600:9600"
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    networks:
-      - minio-network
-
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2
-    container_name: opensearch-dashboards
-    ports:
-      - "5601:5601"
-    environment:
-      - OPENSEARCH_HOSTS=http://opensearch:9200
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    depends_on:
-      - opensearch
-    networks:
-      - minio-network
-
-  logstash:
-    image: opensearchproject/logstash-oss-with-opensearch-output-plugin:8.9.0
-    container_name: logstash
-    ports:
-      - "5044:5044"
-    volumes:
-      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
-    depends_on:
-      - opensearch
-    networks:
-      - minio-network
-
-  webhook:
-    build:
-      context: ./webhook
-      dockerfile: Dockerfile
-    container_name: log-webhook
-    ports:
-      - "8081:8081"
-    environment:
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: myminio
-      MINIO_SECRET_KEY: minio123
-      MINIO_USE_SSL: "false"
-      OPENSEARCH_URL: http://opensearch:9200
-    depends_on:
-      - opensearch
-    networks:
-      - minio-network
-
-  minio-setup:
-    image: minio/mc
-    container_name: minio-setup
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      echo 'Waiting for MinIO...';
-      sleep 15;
-      until mc alias set myminio http://minio:9000 myminio minio123 2>/dev/null; do
-        echo 'MinIO not ready, waiting...';
-        sleep 3;
-      done;
-      echo 'MinIO is ready!';
-
-      echo 'Creating bucket if not exists...';
-      mc mb myminio/app-logs --ignore-existing;
-
-      echo 'Adding event notification...';
-      mc event add myminio/app-logs arn:minio:sqs::logwebhook:webhook --event put --suffix .json || true;
-
-      echo 'Configured events:';
-      mc event list myminio/app-logs;
-
-      echo 'MinIO setup completed!';
-      exit 0;
-      "
-    networks:
-      - minio-network
 
 volumes:
   minio_data:
-  opensearch_data:
-
-networks:
-  minio-network:
-    driver: bridge
