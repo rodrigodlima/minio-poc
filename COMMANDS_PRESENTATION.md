@@ -110,10 +110,6 @@ mc retention set --default COMPLIANCE "1d" demo/critical-backup
 mc cp /tmp/backup.txt demo/critical-backup/
 ```
 
-```bash
-mc cat demo/critical-backup/backup.txt
-```
-
 ---
 
 ```bash
