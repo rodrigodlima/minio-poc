@@ -90,7 +90,7 @@ WORM = Write Once Read Many
 cd examples/erasure-coding
 docker compose -f docker-compose.erasure.yml up -d
 sleep 5
-mc alias set demo http://localhost:9010 myminio minio123
+mc alias set demo http://localhost:9090 minio minio123
 echo "FINANCIAL BACKUP - Revenue: 15M" > /tmp/backup.txt
 ```
 
