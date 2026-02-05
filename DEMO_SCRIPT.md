@@ -50,7 +50,7 @@ docker-compose ps
 ```
 
 **Browser tabs:**
-- MinIO Console: http://localhost:9001 (myminio / minio123)
+- MinIO Console: http://localhost:9091 (myminio / minio123)
 - OpenSearch Dashboards: http://localhost:5601
 
 ---
@@ -295,7 +295,7 @@ mc cat erasure-demo/compliance-bucket/audit.txt
 ```
 ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌────────────┐
 │  Go API │────▶│  MinIO  │────▶│ Webhook │────▶│ OpenSearch │
-│  :8080  │     │  :9000  │     │  :8081  │     │   :9200    │
+│  :8080  │     │  :9090  │     │  :8081  │     │   :9200    │
 └─────────┘     └─────────┘     └─────────┘     └────────────┘
 ```
 
@@ -336,7 +336,7 @@ curl -X POST http://localhost:8080/logs \
 
 #### 4.5 View Logs in MinIO (30 sec)
 
-**Action:** Open MinIO Console http://localhost:9001
+**Action:** Open MinIO Console http://localhost:9091
 
 **What to say:**
 

@@ -38,7 +38,7 @@ A proof of concept demonstrating MinIO as a low-cost log storage with OpenSearch
                                     │                                                  │
 ┌─────────────┐     ┌─────────────┐ │  ┌─────────────┐     ┌─────────────┐            │
 │   Go API    │────▶│    MinIO    │─┼─▶│   Webhook   │────▶│ OpenSearch  │            │
-│   :8080     │     │ :9000/:9001 │ │  │   :8081     │     │   :9200     │            │
+│   :8080     │     │ :9090/:9091 │ │  │   :8081     │     │   :9200     │            │
 └─────────────┘     └─────────────┘ │  └─────────────┘     └─────────────┘            │
                            │        │         │                    │                   │
                            │        │   (reads content)            │                   │
@@ -73,7 +73,7 @@ A proof of concept demonstrating MinIO as a low-cost log storage with OpenSearch
 | Service | Port | Description |
 |---------|------|-------------|
 | Go API | 8080 | REST API that stores logs in MinIO |
-| MinIO | 9000, 9001 | Object storage (API and Console) |
+| MinIO | 9090, 9091 | Object storage (API and Console) |
 | Webhook | 8081 | Processes MinIO events and indexes logs |
 | OpenSearch | 9200, 9600 | Log storage and search engine |
 | OpenSearch Dashboards | 5601 | Log visualization UI |
@@ -110,7 +110,7 @@ docker-compose ps
 
 ### 4. Access the UIs
 
-- **MinIO Console**: http://localhost:9001
+- **MinIO Console**: http://localhost:9091
   - Username: `myminio`
   - Password: `minio123`
 - **OpenSearch Dashboards**: http://localhost:5601

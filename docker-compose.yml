@@ -3,14 +3,15 @@ services:
     image: minio/minio
     container_name: minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9090:9000"
+      - "9091:9001"
     environment:
-      MINIO_ROOT_USER: myminio
+      MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: minio123
+      MINIO_BROWSER_LOGIN_ANIMATION: "off"
     volumes:
       - minio_data:/data
-    command: server /data --console-address ":9001"
+    command: server /data --console-address ":9091"
 
 volumes:
   minio_data:

@@ -144,7 +144,7 @@ python demo_ml_simple.py
 
 **Expected output:**
 ```
-[1] Connected to MinIO at http://localhost:9000 (using boto3/S3 SDK)
+[1] Connected to MinIO at http://localhost:9090 (using boto3/S3 SDK)
 [2] Uploaded: s3://ml-datasets/logs/training_data.csv
 [3] Model trained! Accuracy: 92%
 [4] Saved: s3://ml-models/log-classifier/v_20250201/model.pkl
